@@ -37,6 +37,9 @@ export default function Home() {
   const [toast, setToast] = useState("");
   const [form, setForm] = useState({});
   const [attendanceFilter, setAttendanceFilter] = useState("All");
+  const [employeeId, setEmployeeId] = useState(1);
+  const [dutyReports, setDutyReports] = useState([]);
+  const [employeePurchases, setEmployeePurchases] = useState([]);
 
   const branchName = id => initialBranches.find(b => b.id === id)?.name.replace("ParesKada · ", "") || "—";
   const filteredEmployees = employees.filter(e => (branch === "all" || e.branch === branch) && (attendanceFilter === "All" || e.shift === attendanceFilter));
@@ -57,7 +60,10 @@ export default function Home() {
   function saveForm() {
     if (modal === "sale") {
       if (!form.amount || Number(form.amount) <= 0) return notify("Enter a valid sales amount.");
-      setSales(v => [{ id: Date.now(), branch: form.branch, shift: form.shift, amount: Number(form.amount), date: form.date || today, by: form.by || "Branch manager", note: form.note || "Shift sales" }, ...v]);
+      const saleRecord = { id: Date.now(), branch: form.branch, shift: form.shift, amount: Number(form.amount), date: form.date || today, by: form.by || "Branch manager", note: form.note || "Shift sales" };
+      setSales(v => [saleRecord, ...v]);
+      const matchedEmployee = employees.find(e => e.name === saleRecord.by);
+      if (matchedEmployee) setDutyReports(v => [{ ...saleRecord, employeeId: matchedEmployee.id }, ...v]);
     }
     if (modal === "expense") {
       if (!form.amount || Number(form.amount) <= 0) return notify("Enter a valid expense amount.");
@@ -72,6 +78,9 @@ export default function Home() {
       const chosen = stock.find(s => s.id === Number(form.item));
       if (Number(form.quantity) > chosen.stock) return notify("Not enough stock to deduct.");
       setStock(v => v.map(s => s.id === Number(form.item) ? { ...s, stock: s.stock - Number(form.quantity) } : s));
+      const usedItem = stock.find(s => s.id === Number(form.item));
+      const reportingEmployee = employees.find(e => e.name === form.employee);
+      if (reportingEmployee && usedItem) setEmployeePurchases(v => [{ id: Date.now(), employeeId: reportingEmployee.id, item: usedItem.item, quantity: Number(form.quantity), unit: usedItem.unit, date: today }, ...v]);
     }
     if (modal === "employee") {
       if (!form.name) return notify("Enter employee name.");
@@ -93,10 +102,27 @@ export default function Home() {
     </aside>
 
     <main className="main-area">
-      <header className="topbar"><div className="crumb">ParesKada <span>/</span> <b>{section}</b></div><div className="top-actions"><span className="today-label">◷ &nbsp;{today}</span><button className="icon-button" onClick={() => notify("You're all caught up!")}>♧<i></i></button><div className="top-avatar">MV</div></div></header>
+      <header className="topbar"><div className="crumb">ParesKada <span>/</span> <b>{section}</b></div><div className="top-actions"><button className="employee-view-btn" onClick={() => setSection(section === "Employee Portal" ? "Overview" : "Employee Portal")}>{section === "Employee Portal" ? "Owner dashboard" : "Employee portal"} ↗</button><span className="today-label">◷ &nbsp;{today}</span><button className="icon-button" onClick={() => notify("You're all caught up!")}>♧<i></i></button><div className="top-avatar">MV</div></div></header>
       <div className="content">
         <div className="welcome-row"><div><div className="overline">SUNDAY, NOVEMBER 1, 2026 · OWNER WORKSPACE</div><h1>{section === "Overview" ? "Good day, Owner! 👋" : section}</h1><p>{section === "Overview" ? "Here's what's happening across your paresan branches today." : "Manage your paresan operations in one place."}</p></div><div className="header-controls"><label className="select-wrap"><span>BRANCH</span><select value={branch} onChange={e => setBranch(e.target.value)}><option value="all">All branches</option>{initialBranches.map(b => <option key={b.id} value={b.id}>{b.name.replace("ParesKada · ", "")}</option>)}</select></label><label className="select-wrap shift-select"><span>SHIFT VIEW</span><select value={shift} onChange={e => setShift(e.target.value)}><option>Day</option><option>Night</option></select></label></div></div>
 
+        {section === "Employee Portal" && (() => {
+          const me = employees.find(e => e.id === Number(employeeId)) || employees[0];
+          const mySales = dutyReports.filter(r => r.employeeId === me.id);
+          const myPurchases = employeePurchases.filter(r => r.employeeId === me.id);
+          const startSale = () => { setForm({ branch: me.branch, shift: me.shift, date: today, by: me.name, note: "Duty sales report" }); setModal("sale"); };
+          const startDeduct = () => { setForm({ branch: me.branch, shift: me.shift, employee: me.name }); setModal("deduct"); };
+          return <div className="employee-workspace">
+            <div className="employee-welcome"><div><span className="overline">EMPLOYEE WORKSPACE</span><h2>Hello, {me.name.split(" ")[0]}! 👋</h2><p>Record your attendance and submit your shift report here.</p></div><label className="select-wrap employee-picker"><span>DEMO EMPLOYEE LOGIN</span><select value={employeeId} onChange={e=>setEmployeeId(Number(e.target.value))}>{employees.map(e=><option key={e.id} value={e.id}>{e.name} · {branchName(e.branch)}</option>)}</select></label></div>
+            <div className="employee-identity panel"><div className="employee-big-avatar">{me.name.split(" ").map(x=>x[0]).slice(0,2).join("")}</div><div className="employee-identity-info"><b>{me.name}</b><span>{me.role} · {branchName(me.branch)}</span><span className={"shift-pill "+(me.shift==="Day"?"day":"night")}>{me.shift==="Day"?"☀ Day shift · 6 AM–6 PM":"☾ Night shift · 6 PM–6 AM"}</span></div><span className={"status-pill "+(me.status==="On duty"?"status-good":"status-muted")}>{me.status}</span></div>
+            <div className="employee-action-grid">
+              <section className="panel timeclock-panel"><div className="panel-head"><div><h2>My attendance</h2><p>Clock in when your duty starts and clock out when it ends.</p></div><span className="clock-face">◷</span></div><div className="clock-time">{new Date().toLocaleTimeString("en-PH",{hour:"2-digit",minute:"2-digit"})}</div><div className="clock-date">{today}</div><div className="clock-status">{me.status==="On duty"?"You are currently clocked in.":"You are currently off duty."}</div><button className={"clock-action "+(me.status==="On duty"?"clock-out":"clock-in")} onClick={()=>clockAction(me.id)}>{me.status==="On duty"?"Time out":"Time in"} <span>→</span></button><div className="clock-foot">Assigned schedule: {me.shift==="Day"?"6:00 AM – 6:00 PM":"6:00 PM – 6:00 AM"}</div></section>
+              <section className="panel employee-report-panel"><div className="panel-head"><div><h2>End-of-shift report</h2><p>Submit your sales collection for this duty.</p></div><span className="quick-icon orange-bg">₱</span></div><div className="report-instructions">Enter the total sales you collected during your shift. The owner can review this under Sales & Cash-up.</div><button className="action-btn full-action" onClick={startSale}>＋ Report duty sales</button><button className="outline-btn full-action" onClick={startDeduct}>− Report items used / purchased</button></section>
+            </div>
+            <div className="bottom-grid employee-history-grid"><section className="panel"><div className="panel-head"><div><h2>My submitted sales reports</h2><p>Sales entries submitted from this employee view.</p></div><b className="history-total">{peso(mySales.reduce((a,s)=>a+s.amount,0))}</b></div>{mySales.length?mySales.map(s=><div className="employee-history-row" key={s.id}><div><b>{s.date} · {s.shift} shift</b><small>{s.note}</small></div><strong>{peso(s.amount)}</strong></div>):<div className="empty-state">No duty sales reports submitted yet.</div>}</section><section className="panel"><div className="panel-head"><div><h2>My stock / purchase reports</h2><p>Items you reported as used or taken from stock.</p></div></div>{myPurchases.length?myPurchases.map(s=><div className="employee-history-row" key={s.id}><div><b>{s.item}</b><small>{s.date} · {s.quantity} {s.unit}</small></div><strong>Reported</strong></div>):<div className="empty-state">No item usage reports submitted yet.</div>}</section></div>
+            <p className="demo-note">Demo employee selector only. Individual employee accounts, secure login, database saving, and manager approval will be connected in the backend phase.</p>
+          </div>;
+        })()}
         {section === "Overview" && <>
           <div className="stats-grid">
             <Stat icon="₱" label="TOTAL SALES TODAY" value={peso(totalSales)} change="Across selected branches" tone="orange"/>
@@ -127,7 +153,7 @@ export default function Home() {
 
     {modal && <div className="modal-overlay" onClick={()=>setModal("")}><div className="form-modal" onClick={e=>e.stopPropagation()}><div className="modal-heading"><div><span className="overline">PARESKADA MANAGEMENT</span><h2>{modal==="sale"?"Record shift sales":modal==="expense"?"Add daily expense":modal==="purchase"?"Add stock purchase":modal==="deduct"?"Deduct inventory": "Add employee"}</h2></div><button onClick={()=>setModal("")}>×</button></div>
       {(modal==="sale"||modal==="expense")&&<><Field label="Branch"><select value={form.branch||"main"} onChange={e=>setForm({...form,branch:e.target.value})}>{initialBranches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>{modal==="sale"&&<Field label="Duty shift"><select value={form.shift||"Day"} onChange={e=>setForm({...form,shift:e.target.value})}><option>Day</option><option>Night</option></select></Field>}{modal==="expense"&&<Field label="Expense category"><select value={form.category||"Ingredients"} onChange={e=>setForm({...form,category:e.target.value})}>{["Ingredients","Utilities","Transportation","Supplies","Salary","Rent","Other"].map(x=><option key={x}>{x}</option>)}</select></Field>}<Field label="Amount (₱)"><input type="number" min="0" value={form.amount||""} onChange={e=>setForm({...form,amount:e.target.value})} placeholder="0.00"/></Field><Field label={modal==="sale"?"Recorded by":"Expense details"}><input value={modal==="sale"?(form.by||""):(form.detail||"")} onChange={e=>setForm({...form,[modal==="sale"?"by":"detail"]:e.target.value})} placeholder={modal==="sale"?"Employee name":"What was purchased or paid?"}/></Field><Field label="Date"><input value={form.date||today} onChange={e=>setForm({...form,date:e.target.value})}/></Field>{modal==="sale"&&<Field label="Notes (optional)"><input value={form.note||""} onChange={e=>setForm({...form,note:e.target.value})} placeholder="e.g. Cash + GCash collection"/></Field>}</>}
-      {(modal==="purchase"||modal==="deduct")&&<><Field label="Inventory item"><select value={form.item||""} onChange={e=>setForm({...form,item:e.target.value})}><option value="">Choose item</option>{stock.map(s=><option key={s.id} value={s.id}>{s.item} · {s.stock} {s.unit} available</option>)}</select></Field><Field label="Quantity"><input type="number" min="0" value={form.quantity||""} onChange={e=>setForm({...form,quantity:e.target.value})} placeholder="Enter quantity"/></Field><p className="form-hint">{modal==="purchase"?"Purchased stock will be added to the inventory count.":"Items used, taken, or issued will be deducted from the available stock."}</p></>}
+      {(modal==="purchase"||modal==="deduct")&&<><Field label="Inventory item"><select value={form.item||""} onChange={e=>setForm({...form,item:e.target.value})}><option value="">Choose item</option>{stock.map(s=><option key={s.id} value={s.id}>{s.item} · {s.stock} {s.unit} available</option>)}</select></Field><Field label="Quantity"><input type="number" min="0" value={form.quantity||""} onChange={e=>setForm({...form,quantity:e.target.value})} placeholder="Enter quantity"/></Field>{modal==="deduct"&&<Field label="Reported by (employee)"><select value={form.employee||""} onChange={e=>setForm({...form,employee:e.target.value})}><option value="">Owner / manager</option>{employees.map(e=><option key={e.id}>{e.name}</option>)}</select></Field>}<p className="form-hint">{modal==="purchase"?"Purchased stock will be added to the inventory count.":"Items used, taken, or issued will be deducted from the available stock."}</p></>}
       {modal==="employee"&&<><Field label="Employee full name"><input value={form.name||""} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Enter employee name"/></Field><Field label="Position / role"><input value={form.role||""} onChange={e=>setForm({...form,role:e.target.value})} placeholder="e.g. Cook, Cashier"/></Field><Field label="Assigned branch"><select value={form.branch||"main"} onChange={e=>setForm({...form,branch:e.target.value})}>{initialBranches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></Field><Field label="Assigned shift"><select value={form.shift||"Day"} onChange={e=>setForm({...form,shift:e.target.value})}><option>Day</option><option>Night</option></select></Field></>}
       <div className="modal-actions"><button className="outline-btn" onClick={()=>setModal("")}>Cancel</button><button className="action-btn" onClick={saveForm}>Save record</button></div>
     </div></div>}
