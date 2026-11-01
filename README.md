@@ -1,15 +1,22 @@
-# ParesKada
+# ParesKada — Paresan Management System
 
-A Filipino paresan discovery and ordering website.
+A branch operations dashboard prototype for paresan owners and staff.
 
-## Development workflow
+## Modules
+- Owner overview across branches
+- Inventory tracking, stock purchases, and stock deductions
+- Day and night shift sales / cash-up records
+- Daily expense tracking
+- Employee time-in and time-out attendance
+- Branch directory and employee assignments
+- Branch performance reports
 
-- `dev` is the review branch for ongoing development.
-- Vercel deployments from `dev` must be Preview deployments.
-- Production release is held until the owner reviews and approves the changes.
+## Shift schedule
+- Day shift: 6:00 AM – 6:00 PM
+- Night shift: 6:00 PM – 6:00 AM
 
-## Stack
+## Development
+Work is being reviewed on the `dev` branch. Vercel deployments from this branch are Preview-only until the owner explicitly approves a production release.
 
-- Next.js
-- React
-- CSS
+## Prototype limitations
+Current records are browser-session demo data. Authentication, database persistence, real-time multi-branch sync, payroll, permissions, and downloadable reports are not connected yet.
